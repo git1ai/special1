@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Player</title>
+    <style>
+        :root {
+            --bg-color: #f5f5f5;
+            --text-color: #333;
+            --card-bg: #fff;
+            --border-color: #ddd;
+            --hover-bg: #f0f0f0;
+            --primary-color: #007bff;
+            --search-bg: #e9ecef;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #121212;
+                --text-color: #f5f5f5;
+                --card-bg: #1e1e1e;
+                --border-color: #444;
+                --hover-bg: #333;
+                --primary-color: #1da1f2;
+                --search-bg: #2d2d2d;
+            }
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: var(--primary-color);
+        }
+
+        .search-filter {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        #search {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background-color: var(--search-bg);
+            color: var(--text-color);
+        }
+
+        #filter {
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background-color: var(--search-bg);
+            color: var(--text-color);
+        }
+
+        .audio-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .audio-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            transition: background-color 0.2s;
+        }
+
+        .audio-card:hover {
+            background-color: var(--hover-bg);
+        }
+
+        .audio-card h3 {
+            margin-top: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .audio-player {
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .no-results {
+            text-align: center;
+            grid-column: 1 / -1;
+            color: #666;
+            font-style: italic;
+        }
+
+        @media (max-width: 600px) {
+            .audio-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Audio Player</h1>
+
+        <div class="search-filter">
+            <input type="text" id="search" placeholder="Suche nach Audiodateien..." aria-label="Suche nach Audiodateien">
+            <select id="filter" aria-label="Filter nach Dateityp">
+                <option value="">Alle Dateitypen</option>
+                <option value="mp3">MP3</option>
+                <option value="wav">WAV</option>
+                <option value="ogg">OGG</option>
+            </select>
+        </div>
+
+        <div class="audio-grid" id="audioGrid">
+            <!-- Audiodateien werden hier dynamisch eingefügt -->
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const audioGrid = document.getElementById('audioGrid');
+            const searchInput = document.getElementById('search');
+            const filterSelect = document.getElementById('filter');
+
+            // Audiodateien laden
+            fetch('audio/')
+                .then(response => response.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const links = Array.from(doc.querySelectorAll('a[href]'))
+                        .map(a => a.getAttribute('href'))
+                        .filter(href => href.match(/\.(mp3|wav|ogg)$/i));
+
+                    displayAudioFiles(links);
+                })
+                .catch(err => {
+                    console.error('Fehler beim Laden der Audiodateien:', err);
+                    audioGrid.innerHTML = '<p class="no-results">Fehler beim Laden der Audiodateien.</p>';
+                });
+
+            // Audiodateien anzeigen
+            function displayAudioFiles(files) {
+                if (files.length === 0) {
+                    audioGrid.innerHTML = '<p class="no-results">Keine Audiodateien gefunden.</p>';
+                    return;
+                }
+
+                audioGrid.innerHTML = files.map(file => `
+                    <div class="audio-card" data-type="${file.split('.').pop().toLowerCase()}">
+                        <h3>${file.replace(/\.[^/.]+$/, "")}</h3>
+                        <audio class="audio-player" controls>
+                            <source src="audio/${file}" type="audio/${file.split('.').pop()}">
+                            Ihr Browser unterstützt das Audio-Element nicht.
+                        </audio>
+                    </div>
+                `).join('');
+            }
+
+            // Suche und Filter
+            function filterAudioFiles() {
+                const searchTerm = searchInput.value.toLowerCase();
+                const filterType = filterSelect.value.toLowerCase();
+
+                document.querySelectorAll('.audio-card').forEach(card => {
+                    const fileName = card.querySelector('h3').textContent.toLowerCase();
+                    const fileType = card.dataset.type;
+
+                    const matchesSearch = fileName.includes(searchTerm);
+                    const matchesFilter = !filterType || fileType === filterType;
+
+                    card.style.display = matchesSearch && matchesFilter ? 'block' : 'none';
+                });
+
+                // Prüfen, ob Ergebnisse vorhanden sind
+                const visibleCards = document.querySelectorAll('.audio-card[style="display: block;"]');
+                if (visibleCards.length === 0) {
+                    let noResults = document.querySelector('.no-results');
+                    if (!noResults) {
+                        noResults = document.createElement('p');
+                        noResults.className = 'no-results';
+                        noResults.textContent = 'Keine passenden Audiodateien gefunden.';
+                        audioGrid.appendChild(noResults);
+                    }
+                } else {
+                    const noResults = document.querySelector('.no-results');
+                    if (noResults) noResults.remove();
+                }
+            }
+
+            searchInput.addEventListener('input', filterAudioFiles);
+            filterSelect.addEventListener('change', filterAudioFiles);
+        });
+    </script>
+</body>
+</html>
